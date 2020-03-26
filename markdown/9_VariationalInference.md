@@ -310,7 +310,7 @@ plot(p1, p2, layout=(2, 1), size=(900, 500))
 
 
 
-![svg](figures/output_34_0.svg)
+![svg](../figures/output_34_0.svg)
 
 
 
@@ -393,7 +393,7 @@ p = plot(p1, p2; layout=(2, 1), size=(900, 500))
 
 
 
-![svg](figures/output_36_0.svg)
+![svg](../figures/output_36_0.svg)
 
 
 
@@ -741,7 +741,7 @@ plot_variational_marginals(z, sym2range)
 
 
 
-![svg](figures/output_68_0.svg)
+![svg](../figures/output_68_0.svg)
 
 
 
@@ -766,7 +766,7 @@ plot(chain)
 
 
 
-![svg](figures/output_71_0.svg)
+![svg](../figures/output_71_0.svg)
 
 
 
@@ -1003,7 +1003,7 @@ title!("MCMC (NUTS)")
 
 
 
-![svg](figures/output_89_0.svg)
+![svg](../figures/output_89_0.svg)
 
 
 
@@ -1091,7 +1091,7 @@ plot(p1, p2, layout = (1, 2), size = (800, 2000))
 
 
 
-![svg](figures/output_100_0.svg)
+![svg](../figures/output_100_0.svg)
 
 
 
@@ -1190,7 +1190,7 @@ heatmap(cov(A * A'))
 
 
 
-![svg](figures/output_110_0.svg)
+![svg](../figures/output_110_0.svg)
 
 
 
@@ -1210,7 +1210,7 @@ plot(p1, p2, layout = (1, 2), size = (800, 2000))
 
 
 
-![svg](figures/output_112_0.svg)
+![svg](../figures/output_112_0.svg)
 
 
 
@@ -1281,7 +1281,7 @@ title!("Mean-field ADVI (Normal)")
 
 
 
-![svg](figures/output_117_0.svg)
+![svg](../figures/output_117_0.svg)
 
 
 
@@ -1300,7 +1300,7 @@ title!("Full ADVI (Normal)")
 
 
 
-![svg](figures/output_118_0.svg)
+![svg](../figures/output_118_0.svg)
 
 
 
@@ -1318,7 +1318,7 @@ title!("MCMC (NUTS)")
 
 
 
-![svg](figures/output_119_0.svg)
+![svg](../figures/output_119_0.svg)
 
 
 
@@ -1330,7 +1330,7 @@ plot(p1, p2, p3, layout = (1, 3), size = (900, 250), label="")
 
 
 
-![svg](figures/output_120_0.svg)
+![svg](../figures/output_120_0.svg)
 
 
 
