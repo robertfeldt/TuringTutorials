@@ -5,8 +5,8 @@ using Distributions, LinearAlgebra
 using VegaLite, DataFrames
 
 # Example data set - generate synthetic gene expression data
-n_cells = 100
-n_genes = 30
+n_cells = 50
+n_genes = 18
 mu_1 = 10. * ones(n_genes÷3)
 mu_0 = zeros(n_genes÷3)
 S = I(n_genes÷3)
@@ -55,12 +55,14 @@ end
 ppca = pPCA(expression_matrix)
 
 # Hamiltonian Monte Carlo (HMC) sampler parameters
-n_iterations = 1000
+n_iterations = 500
 ϵ = 0.05
 τ = 10
 
 #  It is important to note that although the maximum likelihood estimates of W,\mu in the pPCA model correspond to the PCA subspace, only posterior distributions can be obtained for the latent data (points on the subspace). Neither the mode nor the mean of those distributions corresponds to the PCA points (orthogonal projections of the observations onto the subspace). However what is true, is that the posterior distributions converge to the PCA points as \sigma^2 \rightarrow 0. In other words, the relationship between pPCA and PCA is a bit more subtle than that between least squares and regression.
 chain = sample(ppca, HMC(ϵ, τ), n_iterations)
+
+describe(chain)[1]
 
 # Extract paramter estimates for plotting - mean of posterior
 w = permutedims(reshape(mean(group(chain, :w))[:,2], (n_genes,n_genes)))
@@ -81,6 +83,6 @@ df_pro[!,:cell] = 1:n_cells
 
 DataFrames.stack(df_pro, 1:n_genes) |> @vlplot(:rect, "cell:o", "variable:o", color=:value)
 
-df_pro[!,:type] = repeat([1, 2], inner = 50)
+df_pro[!,:type] = repeat([1, 2], inner = n_cells÷2)
 df_pro |>  @vlplot(:point, x=:z1, y=:z2, color="type:n")
 
