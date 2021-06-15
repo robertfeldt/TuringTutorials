@@ -56,12 +56,10 @@ and the way to implement this in Turing is:
 michaelis_menten(b1, b2, s) = (b1 * s) / (b2 + s)
 # Bayesian non-linear regression, Michaelis-Menten kinetics.
 @model function nonlinear_regression_MM(R, S)
-    # Set the priors on our coefficients.
-    b1 ~ truncated(Gamma(1.5, 0.8),   0.001, Inf)
-    # With the same prior as in the brms example we converge to a bad estimate of b2:
-    #b2 ~ truncated(Gamma(1.5, 0.002), 0.001, Inf) # Not clear why Turing's NUTS sampler behaves differently from the brms/Stan one here...
-    # If problem with the above prior this one with more mass up high seems more stable:
-    b2 ~ truncated(Normal(500, 200), 1.0, Inf)
+    # Set the priors on our coefficients. Note that Distributions Gamma has parameters 
+    # shape and scale so we need to invert the ones used in the brms example...
+    b1 ~ truncated(Gamma(1.5, 1.0/0.8),   0.001, Inf)
+    b2 ~ truncated(Gamma(1.5, 1.0/0.002), 0.001, Inf)
 
     # Set variance prior. Default in brms is a Normal(0, 1)??
     σ ~ truncated(Normal(0, 1), 0, Inf)
@@ -74,7 +72,7 @@ michaelis_menten(b1, b2, s) = (b1 * s) / (b2 + s)
 end
 ```
 
-We used the same priors for the coefficients as Wayne did and a non-informative prior on the variance. Note that in Turing there is nothing special you need to indicate you are doing non-linear modeling. You simply use a non-linear form when relating the independent variables in your data (here S) and your coefficients (here b1 and b2). This is in contrast to the R package brms where there is an explicit argument you need to set to indicate non-linear modeling.
+We used the same priors for the coefficients as Wayne did (but note the inversion of his rate due to differences between Julia's and R's gamma) and a non-informative prior on the variance. Note that in Turing there is nothing special you need to indicate you are doing non-linear modeling. You simply use a non-linear form when relating the independent variables in your data (here S) and your coefficients (here b1 and b2). This is in contrast to the R package brms where there is an explicit argument you need to set to indicate non-linear modeling.
 
 With our model specified, we can call the sampler. We will use the Dynamic NUTS sampler.
 
@@ -86,7 +84,6 @@ chain = sample(model, NUTS(0.65), 4_000);
 Possibly you will see some warnings during sampling telling you that "the current proposal will be rejected due to numerical error(s)". This is not uncommon in non-linear modeling since the flexible form can allow for very large (or small) values being produced. (TODO: Explain this better and in more detail)
 
 As a visual check to confirm that our coefficients have converged, we show the densities and trace plots for our parameters using the `plot` functionality.
-
 
 ```julia
 plot(chain)
@@ -124,4 +121,4 @@ Let's use the mean square distance (msd in the Distances package) to evaluate ou
 msd(data.R, median_predictions)
 ```
 
-We can see that the mean squared loss i very small (about 2e-5 in my runs).
+We can see that the mean squared loss i very small (about 2e-5 in my runs). That corresponds to a very good fit.
