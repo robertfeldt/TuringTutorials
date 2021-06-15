@@ -18,14 +18,8 @@ using Turing, Distributions
 # Import DataFrames.
 using DataFrames
 
-# Import RDatasets.
-using RDatasets
-
 # Import MCMCChains, Plots, and StatPlots for visualizations and diagnostics.
 using MCMCChains, Plots, StatsPlots
-
-# Functionality for splitting and normalizing the data.
-using MLDataUtils: shuffleobs, splitobs, rescale!
 
 # Functionality for evaluating the model predictions.
 using Distances
@@ -64,7 +58,10 @@ michaelis_menten(b1, b2, s) = (b1 * s) / (b2 + s)
 @model function nonlinear_regression_MM(R, S)
     # Set the priors on our coefficients.
     b1 ~ truncated(Gamma(1.5, 0.8),   0.001, Inf)
-    b2 ~ truncated(Gamma(1.5, 0.002), 0.001, Inf)
+    # With the same prior as in the brms example we converge to a bad estimate of b2:
+    #b2 ~ truncated(Gamma(1.5, 0.002), 0.001, Inf) # Not clear why Turing's NUTS sampler behaves differently from the brms/Stan one here...
+    # If problem with the above prior this one with more mass up high seems more stable:
+    b2 ~ truncated(Normal(500, 200), 1.0, Inf)
 
     # Set variance prior. Default in brms is a Normal(0, 1)??
     σ ~ truncated(Normal(0, 1), 0, Inf)
@@ -77,16 +74,16 @@ michaelis_menten(b1, b2, s) = (b1 * s) / (b2 + s)
 end
 ```
 
-We used the same priors for the coefficients as Wayne did and a non-informative prior on the variance. Note that in Turing there is nothing special you need to do to tell it that you are doing non-linear modeling. You simply use a non-linear form when relating the independent variables in your data (here S) and your coefficients (here b1 and b2). This is in contrast to the R package brms where there is an explicit argument you need to set to indicate non-linear modeling.
+We used the same priors for the coefficients as Wayne did and a non-informative prior on the variance. Note that in Turing there is nothing special you need to indicate you are doing non-linear modeling. You simply use a non-linear form when relating the independent variables in your data (here S) and your coefficients (here b1 and b2). This is in contrast to the R package brms where there is an explicit argument you need to set to indicate non-linear modeling.
 
-With our model specified, we can call the sampler. We will use the No U-Turn Sampler ([NUTS](http://turing.ml/docs/library/#-turingnuts--type)). 
+With our model specified, we can call the sampler. We will use the Dynamic NUTS sampler.
 
 ```julia
 model = nonlinear_regression_MM(data.R, data.S)
 chain = sample(model, NUTS(0.65), 4_000);
 ```
 
-Most likely you will see some warnings during sampling telling you that "the current proposal will be rejected due to numerical error(s)". This is not uncommon in non-linear modeling since the flexible form can allow for very large values being produced. (TODO: Explain this better and in more detail)
+Possibly you will see some warnings during sampling telling you that "the current proposal will be rejected due to numerical error(s)". This is not uncommon in non-linear modeling since the flexible form can allow for very large (or small) values being produced. (TODO: Explain this better and in more detail)
 
 As a visual check to confirm that our coefficients have converged, we show the densities and trace plots for our parameters using the `plot` functionality.
 
@@ -95,16 +92,36 @@ As a visual check to confirm that our coefficients have converged, we show the d
 plot(chain)
 ```
 
-It looks like each of our parameters has converged. We can check our numerical estimates and quantiles using:
+It looks like each of our parameters have converged. We can check our numerical estimates and quantiles using:
 
 ```julia
 chain
 ```
 
-We can see that we got reasonably large effective sample size (ess) and Rhat close to 1.0. The estimates for b1 and b2 in my run was 0.1915 and 0.0036, respectively. Let's try them on the data to get a training error:
+We can see that we got reasonably large effective sample size (ess) and Rhat close to 1.0. Let's now use the posterior distribution of our coefficients and predict with them. We create a function that calculates the median and the 95% credible intervals when predicting with the posterior samples (while skipping the first halfs of the chains).
 
 ```julia
-predicted_R = michaelis_menten.(0.1915, 0.0036, data.S)
+# Make predictions given the parameter values of the chain. Skip the initial half.
+function prediction(f::Function, chain, paramnames, X, numskip = div(length(chain), 2))
+    paramvals = map(n -> getproperty(get(chain, n), n), paramnames)
+    medvals, qlows, qhighs = Float64[], Float64[], Float64[]
+    for x in X
+        preds = vec(f.(paramvals..., x))
+        l, m, h = quantile(preds, [0.025, 0.50, 0.975])
+        push!(qlows, l)
+        push!(medvals, m)
+        push!(qhighs, h)
+    end
+    return medvals, qlows, qhighs
+end
+
+median_predictions, qlows, qhighs = prediction(michaelis_menten, chain, [:b1, :b2], data.S)
 ```
 
-Unfortunately, the very low b2 value we got leads to very bad predictions. What went wrong? ;)
+Let's use the mean square distance (msd in the Distances package) to evaluate our predictions:
+
+```julia
+msd(data.R, median_predictions)
+```
+
+We can see that the mean squared loss i very small (about 2e-5 in my runs).
