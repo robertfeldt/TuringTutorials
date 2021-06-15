@@ -1,0 +1,110 @@
+---
+title: Non-Linear Models
+permalink: /:collection/:name/
+redirect_from: tutorials/11-linearregression/
+---
+
+Non-linear models are flexible and powerful, but require more care in both selection of priors and in model specification than (generalized) linear models. Since Turing models are written in Julia itself it is quite simple and natural to formulate non-linear models. Below we work through a few non-linear modeling scenarios, based on similar [tutorials](https://paul-buerkner.github.io/brms/articles/brms_nonlinear.html) and [blog posts](https://thinkinator.com/2016/02/17/brms-0-8-adds-non-linear-regression) originally written for the R package brms.
+
+## Set Up
+
+We begin by importing all the necessary libraries.
+
+
+```julia
+# Import Turing and Distributions.
+using Turing, Distributions
+
+# Import DataFrames.
+using DataFrames
+
+# Import RDatasets.
+using RDatasets
+
+# Import MCMCChains, Plots, and StatPlots for visualizations and diagnostics.
+using MCMCChains, Plots, StatsPlots
+
+# Functionality for splitting and normalizing the data.
+using MLDataUtils: shuffleobs, splitobs, rescale!
+
+# Functionality for evaluating the model predictions.
+using Distances
+
+# Set a seed for reproducibility.
+using Random
+Random.seed!(0)
+
+# Hide the progress prompt while sampling.
+Turing.setprogress!(false);
+```
+
+## Non-linear regression of the Michaelis-Menten kinetics curve
+
+Wayne Folta, in his [blog post](https://thinkinator.com/2016/02/17/brms-0-8-adds-non-linear-regression) showing non-linear modeling in brms, used data from the Michaelis-Menten kinetics curve (from the [Wikipedia page for non-linear regression](https://en.wikipedia.org/wiki/Nonlinear_regression)).
+
+```julia
+data = DataFrame(R = Float64[0, 0.04, 0.07, 0.11, 0.165, 0.225, 0.27, 0.31, 0.315],
+                 S = Float64[0,   30,   70,  140,   300,   600, 1200, 2600,  3800]);
+
+# Show the first six rows of the dataset.
+first(data, 6)
+```
+
+According to the Wikipedia article, the formula is: 
+
+$$
+\frac{{\beta}_1 * \boldsymbol{x}}{{\beta}_2 + \boldsymbol{x}} 
+$$
+
+and the way to implement this in Turing is:
+
+```julia
+michaelis_menten(b1, b2, s) = (b1 * s) / (b2 + s)
+# Bayesian non-linear regression, Michaelis-Menten kinetics.
+@model function nonlinear_regression_MM(R, S)
+    # Set the priors on our coefficients.
+    b1 ~ truncated(Gamma(1.5, 0.8),   0.001, Inf)
+    b2 ~ truncated(Gamma(1.5, 0.002), 0.001, Inf)
+
+    # Set variance prior. Default in brms is a Normal(0, 1)??
+    σ ~ truncated(Normal(0, 1), 0, Inf)
+
+    # Calculate all the mu terms.
+    for i in eachindex(R)
+        r = michaelis_menten(b1, b2, S[i]) # (b1 * S[i]) / (b2 + S[i]) # Michaelis-Menten kinetics model
+        R[i] ~ Normal(r, sqrt(σ))
+    end
+end
+```
+
+We used the same priors for the coefficients as Wayne did and a non-informative prior on the variance. Note that in Turing there is nothing special you need to do to tell it that you are doing non-linear modeling. You simply use a non-linear form when relating the independent variables in your data (here S) and your coefficients (here b1 and b2). This is in contrast to the R package brms where there is an explicit argument you need to set to indicate non-linear modeling.
+
+With our model specified, we can call the sampler. We will use the No U-Turn Sampler ([NUTS](http://turing.ml/docs/library/#-turingnuts--type)). 
+
+```julia
+model = nonlinear_regression_MM(data.R, data.S)
+chain = sample(model, NUTS(0.65), 4_000);
+```
+
+Most likely you will see some warnings during sampling telling you that "the current proposal will be rejected due to numerical error(s)". This is not uncommon in non-linear modeling since the flexible form can allow for very large values being produced. (TODO: Explain this better and in more detail)
+
+As a visual check to confirm that our coefficients have converged, we show the densities and trace plots for our parameters using the `plot` functionality.
+
+
+```julia
+plot(chain)
+```
+
+It looks like each of our parameters has converged. We can check our numerical estimates and quantiles using:
+
+```julia
+chain
+```
+
+We can see that we got reasonably large effective sample size (ess) and Rhat close to 1.0. The estimates for b1 and b2 in my run was 0.1915 and 0.0036, respectively. Let's try them on the data to get a training error:
+
+```julia
+predicted_R = michaelis_menten.(0.1915, 0.0036, data.S)
+```
+
+Unfortunately, the very low b2 value we got leads to very bad predictions. What went wrong? ;)
